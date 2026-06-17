@@ -17,6 +17,7 @@ Current stable auth baseline:
 - Internal host verification toggles are enabled for local stability:
    - `tls.internodeDisableHostVerification=true`
    - `tls.frontendDisableHostVerification=true`
+- Temporal server service set is pinned to `frontend,history,matching` (`temporal.services`) to avoid local startup failures in the embedded Temporal internal worker role.
 
 ## TLS Secret
 

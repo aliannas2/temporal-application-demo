@@ -49,6 +49,7 @@ Temporal frontend is configured natively with TLS certificates and the Python SD
 - Stable baseline (current Kubernetes/Argo deploy):
 	- Frontend TLS enabled
 	- `requireClientAuth=false`
+	- Temporal server runs `frontend,history,matching` services (internal Temporal `worker` service disabled for local stability)
 	- App validates server certificate with the demo CA
 	- App client certificate usage is optional and disabled by default (`TEMPORAL_TLS_USE_CLIENT_CERT=false`)
 - Temporal endpoint: `localhost:7233`
