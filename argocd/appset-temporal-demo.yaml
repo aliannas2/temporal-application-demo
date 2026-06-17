@@ -14,7 +14,7 @@ spec:
             helmValues: |
               tls:
                 existingSecret: temporal-tls-certs
-                requireClientAuth: true
+                requireClientAuth: false
           - appName: temporal-ingress
             namespace: temporal-demo
             chartPath: helm/temporal-ingress

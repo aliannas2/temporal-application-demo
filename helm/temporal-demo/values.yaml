@@ -2,9 +2,10 @@ tls:
   existingSecret: "temporal-tls-certs"
   secretName: temporal-tls-certs
   create: false
-  requireClientAuth: true
+  requireClientAuth: false
   frontendServerName: temporal
   mtlsEnabled: true
+  useClientCert: false
   certKeys:
     ca: ca.crt
     serverCert: server.crt

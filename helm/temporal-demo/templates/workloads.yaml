@@ -208,6 +208,8 @@ spec:
               value: {{ .Values.app.taskQueue | quote }}
             - name: TEMPORAL_MTLS_ENABLED
               value: {{ .Values.tls.mtlsEnabled | quote }}
+            - name: TEMPORAL_TLS_USE_CLIENT_CERT
+              value: {{ .Values.tls.useClientCert | quote }}
             - name: TEMPORAL_TLS_DOMAIN
               value: {{ .Values.tls.frontendServerName | quote }}
             - name: TEMPORAL_TLS_CA_CERT_PATH
@@ -270,6 +272,8 @@ spec:
               value: {{ .Values.app.taskQueue | quote }}
             - name: TEMPORAL_MTLS_ENABLED
               value: {{ .Values.tls.mtlsEnabled | quote }}
+            - name: TEMPORAL_TLS_USE_CLIENT_CERT
+              value: {{ .Values.tls.useClientCert | quote }}
             - name: TEMPORAL_TLS_DOMAIN
               value: {{ .Values.tls.frontendServerName | quote }}
             - name: TEMPORAL_TLS_CA_CERT_PATH

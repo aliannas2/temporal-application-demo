@@ -85,7 +85,7 @@ spec:
             - name: USE_INTERNAL_FRONTEND
               value: "true"
             - name: TEMPORAL_TLS_REQUIRE_CLIENT_AUTH
-              value: "true"
+              value: "false"
             - name: TEMPORAL_TLS_SERVER_CERT
               value: /etc/temporal/certs/server.crt
             - name: TEMPORAL_TLS_SERVER_KEY
@@ -228,6 +228,8 @@ spec:
               value: demo-task-queue
             - name: TEMPORAL_MTLS_ENABLED
               value: "true"
+            - name: TEMPORAL_TLS_USE_CLIENT_CERT
+              value: "false"
             - name: TEMPORAL_TLS_DOMAIN
               value: temporal
             - name: TEMPORAL_TLS_CA_CERT_PATH
@@ -293,6 +295,8 @@ spec:
               value: demo-task-queue
             - name: TEMPORAL_MTLS_ENABLED
               value: "true"
+            - name: TEMPORAL_TLS_USE_CLIENT_CERT
+              value: "false"
             - name: TEMPORAL_TLS_DOMAIN
               value: temporal
             - name: TEMPORAL_TLS_CA_CERT_PATH

@@ -14,6 +14,7 @@ from temporal_demo.config import (
     TEMPORAL_TLS_CLIENT_CERT_PATH,
     TEMPORAL_TLS_CLIENT_KEY_PATH,
     TEMPORAL_TLS_DOMAIN,
+    TEMPORAL_TLS_USE_CLIENT_CERT,
 )
 
 
@@ -30,12 +31,14 @@ async def connect_temporal_client() -> Client:
     connect_kwargs = {}
 
     if TEMPORAL_MTLS_ENABLED:
-        connect_kwargs["tls"] = TLSConfig(
+        tls_kwargs = dict(
             domain=TEMPORAL_TLS_DOMAIN or None,
             server_root_ca_cert=_read_tls_file(TEMPORAL_TLS_CA_CERT_PATH),
-            client_cert=_read_tls_file(TEMPORAL_TLS_CLIENT_CERT_PATH),
-            client_private_key=_read_tls_file(TEMPORAL_TLS_CLIENT_KEY_PATH),
         )
+        if TEMPORAL_TLS_USE_CLIENT_CERT:
+            tls_kwargs["client_cert"] = _read_tls_file(TEMPORAL_TLS_CLIENT_CERT_PATH)
+            tls_kwargs["client_private_key"] = _read_tls_file(TEMPORAL_TLS_CLIENT_KEY_PATH)
+        connect_kwargs["tls"] = TLSConfig(**tls_kwargs)
 
     for attempt in range(1, TEMPORAL_CONNECT_RETRIES + 1):
         try:

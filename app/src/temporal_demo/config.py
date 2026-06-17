@@ -11,6 +11,12 @@ TEMPORAL_MTLS_ENABLED = os.getenv("TEMPORAL_MTLS_ENABLED", "false").lower() in {
 	"yes",
 	"on",
 }
+TEMPORAL_TLS_USE_CLIENT_CERT = os.getenv("TEMPORAL_TLS_USE_CLIENT_CERT", "true").lower() in {
+	"1",
+	"true",
+	"yes",
+	"on",
+}
 TEMPORAL_TLS_DOMAIN = os.getenv("TEMPORAL_TLS_DOMAIN", "")
 TEMPORAL_TLS_CA_CERT_PATH = os.getenv("TEMPORAL_TLS_CA_CERT_PATH", "")
 TEMPORAL_TLS_CLIENT_CERT_PATH = os.getenv("TEMPORAL_TLS_CLIENT_CERT_PATH", "")
