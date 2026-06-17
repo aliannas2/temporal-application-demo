@@ -22,21 +22,25 @@ This folder contains an Argo CD ApplicationSet that deploys all stack resources 
        --from-file=client.key=.certs/client.key \
      --dry-run=client -o yaml | kubectl apply -f -
 
-4. Create the default namespace once (Temporal auto-setup with TLS does not always create it):
+4. Ensure the ApplicationSet is configured with stable TLS defaults (already set in this repo):
 
-    kubectl -n temporal-demo exec deploy/temporal -- \
-       temporal operator namespace create default --retention 3d \
-       --address temporal:7233 \
-       --tls-ca-path /etc/temporal/certs/ca.crt \
-       --tls-cert-path /etc/temporal/certs/client.crt \
-       --tls-key-path /etc/temporal/certs/client.key \
-       --tls-server-name temporal
+   - `tls.requireClientAuth=false` for the temporal-demo application
+   - direct gRPC ingress/backend to `temporal:7233`
+   - no proxy/token auth dependency in the datapath
 
 ## Apply ApplicationSet
 
 kubectl apply -f argocd/appset-temporal-demo.yaml
 
+The chart creates the default Temporal namespace via the `temporal-bootstrap-namespace` Job.
+
 ## Verify
 
 kubectl -n argocd get applications
 kubectl -n temporal-demo get pods,svc,ingress
+kubectl -n temporal-demo get jobs
+
+Optional functional check from the web pod:
+
+kubectl -n temporal-demo exec deploy/web -- \
+   python -c "import json, urllib.request; data=json.dumps({'name':'DocCheck','total_steps':1,'delay_seconds':1}).encode(); req=urllib.request.Request('http://127.0.0.1:8080/api/workflows', data=data, headers={'Content-Type':'application/json'}, method='POST'); resp=urllib.request.urlopen(req, timeout=20); print(resp.status); print(resp.read().decode())"

@@ -8,7 +8,9 @@ This project provides a minimal Temporal application in a containerized environm
 
 ## Stack
 
-- Temporal server via `temporalio/auto-setup`
+- Temporal server + bootstrap tooling
+	- Docker Compose: `temporalio/auto-setup:1.26.2`
+	- Kubernetes/Helm: `temporalio/server:1.26.2` with `temporalio/admin-tools:1.26.2` init/bootstrap
 - Temporal UI via `temporalio/ui`
 - Python worker and API built with `temporalio`, `FastAPI`, and `Uvicorn`
 - PostgreSQL backing store for Temporal
@@ -44,7 +46,11 @@ docker compose exec temporal \
 
 Temporal frontend is configured natively with TLS certificates and the Python SDK connects using `TLSConfig`.
 
-- Required client assets for this demo client: CA cert, client cert, and client private key
+- Stable baseline (current Kubernetes/Argo deploy):
+	- Frontend TLS enabled
+	- `requireClientAuth=false`
+	- App validates server certificate with the demo CA
+	- App client certificate usage is optional and disabled by default (`TEMPORAL_TLS_USE_CLIENT_CERT=false`)
 - Temporal endpoint: `localhost:7233`
 
 Generate the certificates once before starting the stack:
@@ -53,14 +59,14 @@ Generate the certificates once before starting the stack:
 ./generate-certs.sh
 ```
 
-Compose mounts the generated certificates into:
+Compose and Kubernetes manifests mount the generated certificates into:
 
 - the Temporal server (for native TLS/mTLS)
 - the Python web app
 - the worker
 - Temporal UI
 
-The Python client uses `temporalio.client.TLSConfig` to present the client certificate and validate the Temporal frontend certificate against the generated CA.
+The Python client always validates the Temporal frontend certificate against the generated CA. It presents a client certificate only when `TEMPORAL_TLS_USE_CLIENT_CERT=true`.
 
 To rotate the certificates:
 
@@ -68,9 +74,20 @@ To rotate the certificates:
 2. Run `./generate-certs.sh`
 3. Run `docker compose up -d --build`
 
-This PoC uses Temporal-native frontend TLS settings from the server config template (`global.tls.frontend`) and removes the proxy from the auth path.
+This PoC uses Temporal-native frontend TLS settings and removes the proxy from the auth path.
 
-Note: in the `temporalio/auto-setup` local image, strict `requireClientAuth` is coupled with internode behavior and can break bootstrap. For production-grade client-certificate enforcement, use a full Temporal server config (for example in Helm) where internode and frontend TLS client-auth policies are set explicitly.
+Note: strict `requireClientAuth=true` is intentionally not the default for this local demo because it can destabilize bootstrap/internode behavior in lightweight setups. For production-grade client-certificate enforcement, use dedicated cert SAN planning and explicit internode/frontend policies.
+
+## Minikube image refresh
+
+When you change code under `app/`, rebuild and load the app image into Minikube before restarting `web`/`worker`:
+
+```bash
+minikube image build -t temporal-demo-app:latest ./app
+kubectl -n temporal-demo rollout restart deploy/web deploy/worker
+kubectl -n temporal-demo rollout status deploy/web --timeout=600s
+kubectl -n temporal-demo rollout status deploy/worker --timeout=600s
+```
 
 ## Demo flow
 
