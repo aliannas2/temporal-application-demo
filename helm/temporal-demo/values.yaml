@@ -25,7 +25,11 @@ images:
     tag: "15"
     pullPolicy: IfNotPresent
   temporal:
-    repository: temporalio/auto-setup
+    repository: temporalio/server
+    tag: "1.26.2"
+    pullPolicy: IfNotPresent
+  temporalAdminTools:
+    repository: temporalio/admin-tools
     tag: "1.26.2"
     pullPolicy: IfNotPresent
   temporalUi:
@@ -53,6 +57,9 @@ temporal:
   dbPort: "5432"
   dynamicConfigFilePath: /etc/temporal/config/dynamicconfig/docker.yaml
   useInternalFrontend: true
+  namespace:
+    name: default
+    retention: 72h
   resources:
     requests:
       cpu: 500m

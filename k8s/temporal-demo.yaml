@@ -64,9 +64,42 @@ spec:
       labels:
         app: temporal
     spec:
+      initContainers:
+        - name: ensure-visibility-database
+          image: postgres:15
+          env:
+            - name: PGPASSWORD
+              value: temporal
+          command:
+            - sh
+            - -ec
+            - |
+              until pg_isready -h postgres -p "5432" -U temporal; do
+                sleep 2
+              done
+              psql -h postgres -p "5432" -U temporal -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='temporal_visibility'" | grep -q 1 || \
+                psql -h postgres -p "5432" -U temporal -d postgres -c "CREATE DATABASE temporal_visibility"
+        - name: setup-temporal-schema
+          image: temporalio/admin-tools:1.26.2
+          command:
+            - sh
+            - -ec
+            - |
+              temporal-sql-tool --plugin postgres12 --endpoint postgres --port "5432" --user temporal --password temporal --database temporal setup-schema -v 0.0 || true
+              temporal-sql-tool --plugin postgres12 --endpoint postgres --port "5432" --user temporal --password temporal --database temporal update-schema -d /etc/temporal/schema/postgresql/v12/temporal/versioned
+        - name: setup-visibility-schema
+          image: temporalio/admin-tools:1.26.2
+          command:
+            - sh
+            - -ec
+            - |
+              temporal-sql-tool --plugin postgres12 --endpoint postgres --port "5432" --user temporal --password temporal --database temporal_visibility setup-schema -v 0.0 || true
+              temporal-sql-tool --plugin postgres12 --endpoint postgres --port "5432" --user temporal --password temporal --database temporal_visibility update-schema -d /etc/temporal/schema/postgresql/v12/visibility/versioned
       containers:
         - name: temporal
-          image: temporalio/auto-setup:1.26.2
+          image: temporalio/server:1.26.2
+          command:
+            - /etc/temporal/entrypoint.sh
           ports:
             - containerPort: 7233
           env:
@@ -132,6 +165,40 @@ spec:
     - name: grpc
       port: 7233
       targetPort: 7233
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: temporal-bootstrap-namespace
+  namespace: temporal-demo
+spec:
+  template:
+    metadata:
+      labels:
+        app: temporal-bootstrap-namespace
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: temporal-bootstrap-namespace
+          image: temporalio/admin-tools:1.26.2
+          command:
+            - sh
+            - -ec
+            - |
+              while true; do
+                output=$(temporal --address temporal:7233 --tls-ca-path /etc/temporal/certs/ca.crt --tls-server-name temporal operator namespace create --namespace default --retention 72h 2>&1) && exit 0
+                echo "$output"
+                echo "$output" | grep -qi "already exists" && exit 0
+                sleep 5
+              done
+          volumeMounts:
+            - name: temporal-tls-certs
+              mountPath: /etc/temporal/certs
+              readOnly: true
+      volumes:
+        - name: temporal-tls-certs
+          secret:
+            secretName: temporal-tls-certs
 ---
 apiVersion: apps/v1
 kind: Deployment
