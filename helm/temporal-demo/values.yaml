@@ -1,7 +1,22 @@
-auth:
-  token: ""
-  existingSecret: ""
-  secretKey: token
+tls:
+  existingSecret: "temporal-tls-certs"
+  secretName: temporal-tls-certs
+  create: false
+  requireClientAuth: true
+  frontendServerName: temporal
+  mtlsEnabled: true
+  certKeys:
+    ca: ca.crt
+    serverCert: server.crt
+    serverKey: server.key
+    clientCert: client.crt
+    clientKey: client.key
+  certData:
+    ca: ""
+    serverCert: ""
+    serverKey: ""
+    clientCert: ""
+    clientKey: ""
 
 images:
   postgres:
@@ -11,10 +26,6 @@ images:
   temporal:
     repository: temporalio/auto-setup
     tag: "1.26.2"
-    pullPolicy: IfNotPresent
-  temporalProxy:
-    repository: nginx
-    tag: "1.27-alpine"
     pullPolicy: IfNotPresent
   temporalUi:
     repository: temporalio/ui
@@ -40,6 +51,7 @@ temporal:
   db: postgres12
   dbPort: "5432"
   dynamicConfigFilePath: /etc/temporal/config/dynamicconfig/docker.yaml
+  useInternalFrontend: true
   resources:
     requests:
       cpu: 500m
@@ -47,20 +59,6 @@ temporal:
     limits:
       cpu: 1000m
       memory: 1536Mi
-
-temporalProxy:
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 300m
-      memory: 256Mi
-  service:
-    type: NodePort
-    port: 7233
-    targetPort: 7233
-    nodePort: null
 
 temporalUi:
   temporalAddress: temporal:7233
@@ -80,6 +78,7 @@ temporalUi:
 
 app:
   taskQueue: demo-task-queue
+  temporalTargetHost: temporal:7233
   web:
     command:
       - uvicorn

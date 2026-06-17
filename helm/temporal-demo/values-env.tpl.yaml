@@ -1,2 +1,3 @@
-auth:
-  token: ${TEMPORAL_AUTH_TOKEN}
+tls:
+  existingSecret: ${TEMPORAL_TLS_SECRET_NAME}
+  requireClientAuth: ${TEMPORAL_TLS_REQUIRE_CLIENT_AUTH}

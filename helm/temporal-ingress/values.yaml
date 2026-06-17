@@ -13,7 +13,7 @@ grpc:
   enabled: true
   name: temporal-grpc-ingress
   host: temporal-grpc.minikube.local
-  serviceName: temporal-proxy
+  serviceName: temporal
   servicePort: 7233
   annotations:
     nginx.ingress.kubernetes.io/backend-protocol: GRPC

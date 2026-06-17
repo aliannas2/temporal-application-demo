@@ -12,9 +12,9 @@ spec:
             namespace: temporal-demo
             chartPath: helm/temporal-demo
             helmValues: |
-              auth:
-                existingSecret: temporal-auth
-                secretKey: token
+              tls:
+                existingSecret: temporal-tls-certs
+                requireClientAuth: true
           - appName: temporal-ingress
             namespace: temporal-demo
             chartPath: helm/temporal-ingress

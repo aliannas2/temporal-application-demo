@@ -4,14 +4,23 @@ This chart deploys the same stack currently defined in the Kubernetes manifest:
 
 - postgres
 - temporal
-- temporal-proxy (token-enforced gRPC ingress)
 - temporal-ui
 - web
 - worker
 
-## Token via env.tpl
+## TLS Secret
 
-1. Set your token in `helm/env.tpl`.
+Create a Kubernetes secret named `temporal-tls-certs` (or set `tls.existingSecret`) with keys:
+
+- `ca.crt`
+- `server.crt`
+- `server.key`
+- `client.crt`
+- `client.key`
+
+## Optional env.tpl Overrides
+
+1. Set your values in `helm/env.tpl`.
 
 2. Load env vars in your shell:
 
@@ -29,9 +38,8 @@ This chart deploys the same stack currently defined in the Kubernetes manifest:
 
 ## Alternative
 
-If you already manage a Kubernetes Secret with the token, set:
+If you already manage a Kubernetes Secret with certs, set:
 
-- auth.existingSecret
-- auth.secretKey
+- tls.existingSecret
 
-and leave auth.token empty.
+Then leave `tls.create=false`.

@@ -71,8 +71,38 @@ spec:
               value: postgres
             - name: DYNAMIC_CONFIG_FILE_PATH
               value: {{ .Values.temporal.dynamicConfigFilePath | quote }}
+            - name: USE_INTERNAL_FRONTEND
+              value: {{ .Values.temporal.useInternalFrontend | quote }}
+            - name: TEMPORAL_TLS_REQUIRE_CLIENT_AUTH
+              value: {{ .Values.tls.requireClientAuth | quote }}
+            - name: TEMPORAL_TLS_SERVER_CERT
+              value: /etc/temporal/certs/{{ .Values.tls.certKeys.serverCert }}
+            - name: TEMPORAL_TLS_SERVER_KEY
+              value: /etc/temporal/certs/{{ .Values.tls.certKeys.serverKey }}
+            - name: TEMPORAL_TLS_SERVER_CA_CERT
+              value: /etc/temporal/certs/{{ .Values.tls.certKeys.ca }}
+            - name: TEMPORAL_TLS_INTERNODE_SERVER_NAME
+              value: {{ .Values.tls.frontendServerName | quote }}
+            - name: TEMPORAL_TLS_FRONTEND_CERT
+              value: /etc/temporal/certs/{{ .Values.tls.certKeys.serverCert }}
+            - name: TEMPORAL_TLS_FRONTEND_KEY
+              value: /etc/temporal/certs/{{ .Values.tls.certKeys.serverKey }}
+            - name: TEMPORAL_TLS_CLIENT1_CA_CERT
+              value: /etc/temporal/certs/{{ .Values.tls.certKeys.ca }}
+            - name: TEMPORAL_TLS_CLIENT2_CA_CERT
+              value: /etc/temporal/certs/{{ .Values.tls.certKeys.ca }}
+            - name: TEMPORAL_TLS_FRONTEND_SERVER_NAME
+              value: {{ .Values.tls.frontendServerName | quote }}
+          volumeMounts:
+            - name: temporal-tls-certs
+              mountPath: /etc/temporal/certs
+              readOnly: true
           resources:
 {{ toYaml .Values.temporal.resources | indent 12 }}
+      volumes:
+        - name: temporal-tls-certs
+          secret:
+            secretName: {{ include "temporal-demo.tlsSecretName" . }}
 ---
 apiVersion: v1
 kind: Service
@@ -85,64 +115,6 @@ spec:
     - name: grpc
       port: 7233
       targetPort: 7233
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: temporal-proxy
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: temporal-proxy
-  template:
-    metadata:
-      labels:
-        app: temporal-proxy
-    spec:
-      containers:
-        - name: temporal-proxy
-          image: "{{ .Values.images.temporalProxy.repository }}:{{ .Values.images.temporalProxy.tag }}"
-          imagePullPolicy: {{ .Values.images.temporalProxy.pullPolicy }}
-          ports:
-            - containerPort: 7233
-          env:
-            - name: TEMPORAL_AUTH_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "temporal-demo.authSecretName" . }}
-                  key: {{ .Values.auth.secretKey }}
-          command:
-            - /bin/sh
-            - -c
-          args:
-            - envsubst '$TEMPORAL_AUTH_TOKEN' < /etc/nginx/templates/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
-          volumeMounts:
-            - name: proxy-config
-              mountPath: /etc/nginx/templates/nginx.conf.template
-              subPath: nginx.conf.template
-          resources:
-{{ toYaml .Values.temporalProxy.resources | indent 12 }}
-      volumes:
-        - name: proxy-config
-          configMap:
-            name: temporal-proxy-config
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: temporal-proxy
-spec:
-  selector:
-    app: temporal-proxy
-  type: {{ .Values.temporalProxy.service.type }}
-  ports:
-    - name: grpc
-      port: {{ .Values.temporalProxy.service.port }}
-      targetPort: {{ .Values.temporalProxy.service.targetPort }}
-      {{- if .Values.temporalProxy.service.nodePort }}
-      nodePort: {{ .Values.temporalProxy.service.nodePort }}
-      {{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -170,8 +142,26 @@ spec:
               value: {{ .Values.temporalUi.temporalAddress | quote }}
             - name: TEMPORAL_CORS_ORIGINS
               value: {{ .Values.temporalUi.corsOrigins | quote }}
+            - name: TEMPORAL_TLS_CA
+              value: /certs/{{ .Values.tls.certKeys.ca }}
+            - name: TEMPORAL_TLS_CERT
+              value: /certs/{{ .Values.tls.certKeys.clientCert }}
+            - name: TEMPORAL_TLS_KEY
+              value: /certs/{{ .Values.tls.certKeys.clientKey }}
+            - name: TEMPORAL_TLS_ENABLE_HOST_VERIFICATION
+              value: "true"
+            - name: TEMPORAL_TLS_SERVER_NAME
+              value: {{ .Values.tls.frontendServerName | quote }}
+          volumeMounts:
+            - name: temporal-tls-certs
+              mountPath: /certs
+              readOnly: true
           resources:
 {{ toYaml .Values.temporalUi.resources | indent 12 }}
+      volumes:
+        - name: temporal-tls-certs
+          secret:
+            secretName: {{ include "temporal-demo.tlsSecretName" . }}
 ---
 apiVersion: v1
 kind: Service
@@ -213,16 +203,29 @@ spec:
             - containerPort: 8080
           env:
             - name: TEMPORAL_TARGET_HOST
-              value: temporal-proxy:7233
+              value: {{ .Values.app.temporalTargetHost | quote }}
             - name: TEMPORAL_TASK_QUEUE
               value: {{ .Values.app.taskQueue | quote }}
-            - name: TEMPORAL_AUTH_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "temporal-demo.authSecretName" . }}
-                  key: {{ .Values.auth.secretKey }}
+            - name: TEMPORAL_MTLS_ENABLED
+              value: {{ .Values.tls.mtlsEnabled | quote }}
+            - name: TEMPORAL_TLS_DOMAIN
+              value: {{ .Values.tls.frontendServerName | quote }}
+            - name: TEMPORAL_TLS_CA_CERT_PATH
+              value: /certs/{{ .Values.tls.certKeys.ca }}
+            - name: TEMPORAL_TLS_CLIENT_CERT_PATH
+              value: /certs/{{ .Values.tls.certKeys.clientCert }}
+            - name: TEMPORAL_TLS_CLIENT_KEY_PATH
+              value: /certs/{{ .Values.tls.certKeys.clientKey }}
+          volumeMounts:
+            - name: temporal-tls-certs
+              mountPath: /certs
+              readOnly: true
           resources:
 {{ toYaml .Values.app.web.resources | indent 12 }}
+      volumes:
+        - name: temporal-tls-certs
+          secret:
+            secretName: {{ include "temporal-demo.tlsSecretName" . }}
 ---
 apiVersion: v1
 kind: Service
@@ -262,13 +265,26 @@ spec:
 {{ toYaml .Values.app.worker.command | indent 12 }}
           env:
             - name: TEMPORAL_TARGET_HOST
-              value: temporal-proxy:7233
+              value: {{ .Values.app.temporalTargetHost | quote }}
             - name: TEMPORAL_TASK_QUEUE
               value: {{ .Values.app.taskQueue | quote }}
-            - name: TEMPORAL_AUTH_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "temporal-demo.authSecretName" . }}
-                  key: {{ .Values.auth.secretKey }}
+            - name: TEMPORAL_MTLS_ENABLED
+              value: {{ .Values.tls.mtlsEnabled | quote }}
+            - name: TEMPORAL_TLS_DOMAIN
+              value: {{ .Values.tls.frontendServerName | quote }}
+            - name: TEMPORAL_TLS_CA_CERT_PATH
+              value: /certs/{{ .Values.tls.certKeys.ca }}
+            - name: TEMPORAL_TLS_CLIENT_CERT_PATH
+              value: /certs/{{ .Values.tls.certKeys.clientCert }}
+            - name: TEMPORAL_TLS_CLIENT_KEY_PATH
+              value: /certs/{{ .Values.tls.certKeys.clientKey }}
+          volumeMounts:
+            - name: temporal-tls-certs
+              mountPath: /certs
+              readOnly: true
           resources:
 {{ toYaml .Values.app.worker.resources | indent 12 }}
+      volumes:
+        - name: temporal-tls-certs
+          secret:
+            secretName: {{ include "temporal-demo.tlsSecretName" . }}

@@ -6,10 +6,10 @@
 {{- .Release.Name -}}
 {{- end -}}
 
-{{- define "temporal-demo.authSecretName" -}}
-{{- if .Values.auth.existingSecret -}}
-{{- .Values.auth.existingSecret -}}
+{{- define "temporal-demo.tlsSecretName" -}}
+{{- if .Values.tls.existingSecret -}}
+{{- .Values.tls.existingSecret -}}
 {{- else -}}
-temporal-auth
+{{- .Values.tls.secretName -}}
 {{- end -}}
 {{- end -}}

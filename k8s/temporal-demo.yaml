@@ -3,46 +3,6 @@ kind: Namespace
 metadata:
   name: temporal-demo
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: temporal-proxy-config
-  namespace: temporal-demo
-data:
-  nginx.conf.template: |
-    events {}
-
-    http {
-      upstream temporal_backend {
-        server temporal:7233;
-      }
-
-      server {
-        listen 7233;
-        http2 on;
-
-        error_page 418 = @grpc_unauthorized;
-
-        location / {
-          if ($http_authorization != "Bearer ${TEMPORAL_AUTH_TOKEN}") {
-            return 418;
-          }
-
-          grpc_pass grpc://temporal_backend;
-          grpc_read_timeout 300s;
-          grpc_send_timeout 300s;
-          grpc_set_header Authorization $http_authorization;
-          grpc_set_header Host $host;
-        }
-
-        location @grpc_unauthorized {
-          add_header grpc-status 16 always;
-          add_header grpc-message "Unauthenticated" always;
-          return 204;
-        }
-      }
-    }
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -122,6 +82,32 @@ spec:
               value: postgres
             - name: DYNAMIC_CONFIG_FILE_PATH
               value: /etc/temporal/config/dynamicconfig/docker.yaml
+            - name: USE_INTERNAL_FRONTEND
+              value: "true"
+            - name: TEMPORAL_TLS_REQUIRE_CLIENT_AUTH
+              value: "true"
+            - name: TEMPORAL_TLS_SERVER_CERT
+              value: /etc/temporal/certs/server.crt
+            - name: TEMPORAL_TLS_SERVER_KEY
+              value: /etc/temporal/certs/server.key
+            - name: TEMPORAL_TLS_SERVER_CA_CERT
+              value: /etc/temporal/certs/ca.crt
+            - name: TEMPORAL_TLS_INTERNODE_SERVER_NAME
+              value: temporal
+            - name: TEMPORAL_TLS_FRONTEND_CERT
+              value: /etc/temporal/certs/server.crt
+            - name: TEMPORAL_TLS_FRONTEND_KEY
+              value: /etc/temporal/certs/server.key
+            - name: TEMPORAL_TLS_CLIENT1_CA_CERT
+              value: /etc/temporal/certs/ca.crt
+            - name: TEMPORAL_TLS_CLIENT2_CA_CERT
+              value: /etc/temporal/certs/ca.crt
+            - name: TEMPORAL_TLS_FRONTEND_SERVER_NAME
+              value: temporal
+          volumeMounts:
+            - name: temporal-tls-certs
+              mountPath: /etc/temporal/certs
+              readOnly: true
           resources:
             requests:
               cpu: "500m"
@@ -129,6 +115,10 @@ spec:
             limits:
               cpu: "1000m"
               memory: "1536Mi"
+      volumes:
+        - name: temporal-tls-certs
+          secret:
+            secretName: temporal-tls-certs
 ---
 apiVersion: v1
 kind: Service
@@ -142,65 +132,6 @@ spec:
     - name: grpc
       port: 7233
       targetPort: 7233
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: temporal-proxy
-  namespace: temporal-demo
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: temporal-proxy
-  template:
-    metadata:
-      labels:
-        app: temporal-proxy
-    spec:
-      containers:
-        - name: temporal-proxy
-          image: nginx:1.27-alpine
-          ports:
-            - containerPort: 7233
-          env:
-            - name: TEMPORAL_AUTH_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: temporal-auth
-                  key: token
-          command: ["/bin/sh", "-c"]
-          args:
-            - envsubst '$TEMPORAL_AUTH_TOKEN' < /etc/nginx/templates/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
-          volumeMounts:
-            - name: proxy-config
-              mountPath: /etc/nginx/templates/nginx.conf.template
-              subPath: nginx.conf.template
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "128Mi"
-            limits:
-              cpu: "300m"
-              memory: "256Mi"
-      volumes:
-        - name: proxy-config
-          configMap:
-            name: temporal-proxy-config
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: temporal-proxy
-  namespace: temporal-demo
-spec:
-  selector:
-    app: temporal-proxy
-  ports:
-    - name: grpc
-      port: 7233
-      targetPort: 7233
-  type: NodePort
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -228,6 +159,20 @@ spec:
               value: temporal:7233
             - name: TEMPORAL_CORS_ORIGINS
               value: http://localhost:8081
+            - name: TEMPORAL_TLS_CA
+              value: /certs/ca.crt
+            - name: TEMPORAL_TLS_CERT
+              value: /certs/client.crt
+            - name: TEMPORAL_TLS_KEY
+              value: /certs/client.key
+            - name: TEMPORAL_TLS_ENABLE_HOST_VERIFICATION
+              value: "true"
+            - name: TEMPORAL_TLS_SERVER_NAME
+              value: temporal
+          volumeMounts:
+            - name: temporal-tls-certs
+              mountPath: /certs
+              readOnly: true
           resources:
             requests:
               cpu: "200m"
@@ -235,6 +180,10 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
+      volumes:
+        - name: temporal-tls-certs
+          secret:
+            secretName: temporal-tls-certs
 ---
 apiVersion: v1
 kind: Service
@@ -274,14 +223,23 @@ spec:
             - containerPort: 8080
           env:
             - name: TEMPORAL_TARGET_HOST
-              value: temporal-proxy:7233
+              value: temporal:7233
             - name: TEMPORAL_TASK_QUEUE
               value: demo-task-queue
-            - name: TEMPORAL_AUTH_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: temporal-auth
-                  key: token
+            - name: TEMPORAL_MTLS_ENABLED
+              value: "true"
+            - name: TEMPORAL_TLS_DOMAIN
+              value: temporal
+            - name: TEMPORAL_TLS_CA_CERT_PATH
+              value: /certs/ca.crt
+            - name: TEMPORAL_TLS_CLIENT_CERT_PATH
+              value: /certs/client.crt
+            - name: TEMPORAL_TLS_CLIENT_KEY_PATH
+              value: /certs/client.key
+          volumeMounts:
+            - name: temporal-tls-certs
+              mountPath: /certs
+              readOnly: true
           resources:
             requests:
               cpu: "200m"
@@ -289,6 +247,10 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
+      volumes:
+        - name: temporal-tls-certs
+          secret:
+            secretName: temporal-tls-certs
 ---
 apiVersion: v1
 kind: Service
@@ -326,14 +288,23 @@ spec:
           command: ["python", "-m", "temporal_demo.worker"]
           env:
             - name: TEMPORAL_TARGET_HOST
-              value: temporal-proxy:7233
+              value: temporal:7233
             - name: TEMPORAL_TASK_QUEUE
               value: demo-task-queue
-            - name: TEMPORAL_AUTH_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: temporal-auth
-                  key: token
+            - name: TEMPORAL_MTLS_ENABLED
+              value: "true"
+            - name: TEMPORAL_TLS_DOMAIN
+              value: temporal
+            - name: TEMPORAL_TLS_CA_CERT_PATH
+              value: /certs/ca.crt
+            - name: TEMPORAL_TLS_CLIENT_CERT_PATH
+              value: /certs/client.crt
+            - name: TEMPORAL_TLS_CLIENT_KEY_PATH
+              value: /certs/client.key
+          volumeMounts:
+            - name: temporal-tls-certs
+              mountPath: /certs
+              readOnly: true
           resources:
             requests:
               cpu: "200m"
@@ -341,3 +312,7 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
+      volumes:
+        - name: temporal-tls-certs
+          secret:
+            secretName: temporal-tls-certs

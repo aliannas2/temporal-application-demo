@@ -36,6 +36,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: temporal-proxy
+                name: temporal
                 port:
                   number: 7233
