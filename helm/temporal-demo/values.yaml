@@ -58,6 +58,7 @@ temporal:
   db: postgres12
   dbPort: "5432"
   dynamicConfigFilePath: /etc/temporal/config/dynamicconfig/docker.yaml
+  services: frontend,history,matching
   useInternalFrontend: true
   namespace:
     name: default

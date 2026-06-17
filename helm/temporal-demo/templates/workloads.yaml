@@ -107,6 +107,8 @@ spec:
               value: postgres
             - name: DYNAMIC_CONFIG_FILE_PATH
               value: {{ .Values.temporal.dynamicConfigFilePath | quote }}
+            - name: SERVICES
+              value: {{ .Values.temporal.services | quote }}
             - name: USE_INTERNAL_FRONTEND
               value: {{ .Values.temporal.useInternalFrontend | quote }}
             - name: TEMPORAL_TLS_REQUIRE_CLIENT_AUTH

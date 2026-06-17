@@ -115,6 +115,8 @@ spec:
               value: postgres
             - name: DYNAMIC_CONFIG_FILE_PATH
               value: /etc/temporal/config/dynamicconfig/docker.yaml
+            - name: SERVICES
+              value: frontend,history,matching
             - name: USE_INTERNAL_FRONTEND
               value: "true"
             - name: TEMPORAL_TLS_REQUIRE_CLIENT_AUTH
