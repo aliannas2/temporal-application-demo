@@ -1,0 +1,343 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: temporal-demo
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: temporal-proxy-config
+  namespace: temporal-demo
+data:
+  nginx.conf.template: |
+    events {}
+
+    http {
+      upstream temporal_backend {
+        server temporal:7233;
+      }
+
+      server {
+        listen 7233;
+        http2 on;
+
+        error_page 418 = @grpc_unauthorized;
+
+        location / {
+          if ($http_authorization != "Bearer ${TEMPORAL_AUTH_TOKEN}") {
+            return 418;
+          }
+
+          grpc_pass grpc://temporal_backend;
+          grpc_read_timeout 300s;
+          grpc_send_timeout 300s;
+          grpc_set_header Authorization $http_authorization;
+          grpc_set_header Host $host;
+        }
+
+        location @grpc_unauthorized {
+          add_header grpc-status 16 always;
+          add_header grpc-message "Unauthenticated" always;
+          return 204;
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: temporal-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: temporal
+            - name: POSTGRES_PASSWORD
+              value: temporal
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: temporal-demo
+spec:
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal
+  namespace: temporal-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal
+  template:
+    metadata:
+      labels:
+        app: temporal
+    spec:
+      containers:
+        - name: temporal
+          image: temporalio/auto-setup:1.26.2
+          ports:
+            - containerPort: 7233
+          env:
+            - name: DB
+              value: postgres12
+            - name: DB_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              value: temporal
+            - name: POSTGRES_PWD
+              value: temporal
+            - name: POSTGRES_SEEDS
+              value: postgres
+            - name: DYNAMIC_CONFIG_FILE_PATH
+              value: /etc/temporal/config/dynamicconfig/docker.yaml
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1024Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1536Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal
+  namespace: temporal-demo
+spec:
+  selector:
+    app: temporal
+  ports:
+    - name: grpc
+      port: 7233
+      targetPort: 7233
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-proxy
+  namespace: temporal-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal-proxy
+  template:
+    metadata:
+      labels:
+        app: temporal-proxy
+    spec:
+      containers:
+        - name: temporal-proxy
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 7233
+          env:
+            - name: TEMPORAL_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-auth
+                  key: token
+          command: ["/bin/sh", "-c"]
+          args:
+            - envsubst '$TEMPORAL_AUTH_TOKEN' < /etc/nginx/templates/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
+          volumeMounts:
+            - name: proxy-config
+              mountPath: /etc/nginx/templates/nginx.conf.template
+              subPath: nginx.conf.template
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+      volumes:
+        - name: proxy-config
+          configMap:
+            name: temporal-proxy-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal-proxy
+  namespace: temporal-demo
+spec:
+  selector:
+    app: temporal-proxy
+  ports:
+    - name: grpc
+      port: 7233
+      targetPort: 7233
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-ui
+  namespace: temporal-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal-ui
+  template:
+    metadata:
+      labels:
+        app: temporal-ui
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: temporal-ui
+          image: temporalio/ui:2.31.2
+          ports:
+            - containerPort: 8080
+          env:
+            - name: TEMPORAL_ADDRESS
+              value: temporal:7233
+            - name: TEMPORAL_CORS_ORIGINS
+              value: http://localhost:8081
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal-ui
+  namespace: temporal-demo
+spec:
+  selector:
+    app: temporal-ui
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: temporal-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: temporal-demo-app:latest
+          imagePullPolicy: IfNotPresent
+          command: ["uvicorn", "temporal_demo.api:app", "--host", "0.0.0.0", "--port", "8080"]
+          ports:
+            - containerPort: 8080
+          env:
+            - name: TEMPORAL_TARGET_HOST
+              value: temporal-proxy:7233
+            - name: TEMPORAL_TASK_QUEUE
+              value: demo-task-queue
+            - name: TEMPORAL_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-auth
+                  key: token
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: temporal-demo
+spec:
+  selector:
+    app: web
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: temporal-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        - name: worker
+          image: temporal-demo-app:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "temporal_demo.worker"]
+          env:
+            - name: TEMPORAL_TARGET_HOST
+              value: temporal-proxy:7233
+            - name: TEMPORAL_TASK_QUEUE
+              value: demo-task-queue
+            - name: TEMPORAL_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-auth
+                  key: token
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

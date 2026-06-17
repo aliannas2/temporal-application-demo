@@ -1,0 +1,114 @@
+auth:
+  token: ""
+  existingSecret: ""
+  secretKey: token
+
+images:
+  postgres:
+    repository: postgres
+    tag: "15"
+    pullPolicy: IfNotPresent
+  temporal:
+    repository: temporalio/auto-setup
+    tag: "1.26.2"
+    pullPolicy: IfNotPresent
+  temporalProxy:
+    repository: nginx
+    tag: "1.27-alpine"
+    pullPolicy: IfNotPresent
+  temporalUi:
+    repository: temporalio/ui
+    tag: "2.31.2"
+    pullPolicy: IfNotPresent
+  app:
+    repository: temporal-demo-app
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+postgres:
+  user: temporal
+  password: temporal
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+temporal:
+  db: postgres12
+  dbPort: "5432"
+  dynamicConfigFilePath: /etc/temporal/config/dynamicconfig/docker.yaml
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1024Mi
+    limits:
+      cpu: 1000m
+      memory: 1536Mi
+
+temporalProxy:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+  service:
+    type: NodePort
+    port: 7233
+    targetPort: 7233
+    nodePort: null
+
+temporalUi:
+  temporalAddress: temporal:7233
+  corsOrigins: http://localhost:8081
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  service:
+    type: NodePort
+    port: 8080
+    targetPort: 8080
+    nodePort: null
+
+app:
+  taskQueue: demo-task-queue
+  web:
+    command:
+      - uvicorn
+      - temporal_demo.api:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    service:
+      type: NodePort
+      port: 8080
+      targetPort: 8080
+      nodePort: null
+  worker:
+    command:
+      - python
+      - -m
+      - temporal_demo.worker
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi

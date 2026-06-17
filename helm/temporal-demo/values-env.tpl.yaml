@@ -1,0 +1,2 @@
+auth:
+  token: ${TEMPORAL_AUTH_TOKEN}

@@ -1,0 +1,274 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: "{{ .Values.images.postgres.repository }}:{{ .Values.images.postgres.tag }}"
+          imagePullPolicy: {{ .Values.images.postgres.pullPolicy }}
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.user | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.postgres.password | quote }}
+          resources:
+{{ toYaml .Values.postgres.resources | indent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal
+  template:
+    metadata:
+      labels:
+        app: temporal
+    spec:
+      containers:
+        - name: temporal
+          image: "{{ .Values.images.temporal.repository }}:{{ .Values.images.temporal.tag }}"
+          imagePullPolicy: {{ .Values.images.temporal.pullPolicy }}
+          ports:
+            - containerPort: 7233
+          env:
+            - name: DB
+              value: {{ .Values.temporal.db | quote }}
+            - name: DB_PORT
+              value: {{ .Values.temporal.dbPort | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.user | quote }}
+            - name: POSTGRES_PWD
+              value: {{ .Values.postgres.password | quote }}
+            - name: POSTGRES_SEEDS
+              value: postgres
+            - name: DYNAMIC_CONFIG_FILE_PATH
+              value: {{ .Values.temporal.dynamicConfigFilePath | quote }}
+          resources:
+{{ toYaml .Values.temporal.resources | indent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal
+spec:
+  selector:
+    app: temporal
+  ports:
+    - name: grpc
+      port: 7233
+      targetPort: 7233
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal-proxy
+  template:
+    metadata:
+      labels:
+        app: temporal-proxy
+    spec:
+      containers:
+        - name: temporal-proxy
+          image: "{{ .Values.images.temporalProxy.repository }}:{{ .Values.images.temporalProxy.tag }}"
+          imagePullPolicy: {{ .Values.images.temporalProxy.pullPolicy }}
+          ports:
+            - containerPort: 7233
+          env:
+            - name: TEMPORAL_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "temporal-demo.authSecretName" . }}
+                  key: {{ .Values.auth.secretKey }}
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - envsubst '$TEMPORAL_AUTH_TOKEN' < /etc/nginx/templates/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
+          volumeMounts:
+            - name: proxy-config
+              mountPath: /etc/nginx/templates/nginx.conf.template
+              subPath: nginx.conf.template
+          resources:
+{{ toYaml .Values.temporalProxy.resources | indent 12 }}
+      volumes:
+        - name: proxy-config
+          configMap:
+            name: temporal-proxy-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal-proxy
+spec:
+  selector:
+    app: temporal-proxy
+  type: {{ .Values.temporalProxy.service.type }}
+  ports:
+    - name: grpc
+      port: {{ .Values.temporalProxy.service.port }}
+      targetPort: {{ .Values.temporalProxy.service.targetPort }}
+      {{- if .Values.temporalProxy.service.nodePort }}
+      nodePort: {{ .Values.temporalProxy.service.nodePort }}
+      {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal-ui
+  template:
+    metadata:
+      labels:
+        app: temporal-ui
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: temporal-ui
+          image: "{{ .Values.images.temporalUi.repository }}:{{ .Values.images.temporalUi.tag }}"
+          imagePullPolicy: {{ .Values.images.temporalUi.pullPolicy }}
+          ports:
+            - containerPort: 8080
+          env:
+            - name: TEMPORAL_ADDRESS
+              value: {{ .Values.temporalUi.temporalAddress | quote }}
+            - name: TEMPORAL_CORS_ORIGINS
+              value: {{ .Values.temporalUi.corsOrigins | quote }}
+          resources:
+{{ toYaml .Values.temporalUi.resources | indent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal-ui
+spec:
+  selector:
+    app: temporal-ui
+  type: {{ .Values.temporalUi.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.temporalUi.service.port }}
+      targetPort: {{ .Values.temporalUi.service.targetPort }}
+      {{- if .Values.temporalUi.service.nodePort }}
+      nodePort: {{ .Values.temporalUi.service.nodePort }}
+      {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: "{{ .Values.images.app.repository }}:{{ .Values.images.app.tag }}"
+          imagePullPolicy: {{ .Values.images.app.pullPolicy }}
+          command:
+{{ toYaml .Values.app.web.command | indent 12 }}
+          ports:
+            - containerPort: 8080
+          env:
+            - name: TEMPORAL_TARGET_HOST
+              value: temporal-proxy:7233
+            - name: TEMPORAL_TASK_QUEUE
+              value: {{ .Values.app.taskQueue | quote }}
+            - name: TEMPORAL_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "temporal-demo.authSecretName" . }}
+                  key: {{ .Values.auth.secretKey }}
+          resources:
+{{ toYaml .Values.app.web.resources | indent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app: web
+  type: {{ .Values.app.web.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.app.web.service.port }}
+      targetPort: {{ .Values.app.web.service.targetPort }}
+      {{- if .Values.app.web.service.nodePort }}
+      nodePort: {{ .Values.app.web.service.nodePort }}
+      {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        - name: worker
+          image: "{{ .Values.images.app.repository }}:{{ .Values.images.app.tag }}"
+          imagePullPolicy: {{ .Values.images.app.pullPolicy }}
+          command:
+{{ toYaml .Values.app.worker.command | indent 12 }}
+          env:
+            - name: TEMPORAL_TARGET_HOST
+              value: temporal-proxy:7233
+            - name: TEMPORAL_TASK_QUEUE
+              value: {{ .Values.app.taskQueue | quote }}
+            - name: TEMPORAL_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "temporal-demo.authSecretName" . }}
+                  key: {{ .Values.auth.secretKey }}
+          resources:
+{{ toYaml .Values.app.worker.resources | indent 12 }}

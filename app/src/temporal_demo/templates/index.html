@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Temporal Demo</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #102033;
+        --accent: #0f766e;
+        --accent-strong: #115e59;
+        --paper: #f3f6f8;
+        --surface: rgba(255, 255, 255, 0.88);
+        --border: rgba(16, 32, 51, 0.12);
+        --muted: #4b5b6b;
+        --danger: #b42318;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(15, 118, 110, 0.18), transparent 32%),
+          radial-gradient(circle at bottom right, rgba(251, 191, 36, 0.18), transparent 24%),
+          linear-gradient(160deg, #ecf4f2 0%, var(--paper) 55%, #e9eef7 100%);
+      }
+
+      main {
+        width: min(1080px, calc(100% - 32px));
+        margin: 32px auto;
+        display: grid;
+        gap: 20px;
+      }
+
+      .hero,
+      .panel {
+        background: var(--surface);
+        backdrop-filter: blur(12px);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        box-shadow: 0 18px 50px rgba(17, 24, 39, 0.08);
+      }
+
+      .hero {
+        padding: 28px;
+      }
+
+      h1,
+      h2 {
+        margin: 0 0 12px;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .grid {
+        display: grid;
+        gap: 20px;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      }
+
+      .panel {
+        padding: 24px;
+      }
+
+      .meta {
+        margin-top: 16px;
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .pill {
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(15, 118, 110, 0.08);
+        color: var(--accent-strong);
+        font-size: 0.95rem;
+      }
+
+      label {
+        display: block;
+        font-size: 0.92rem;
+        margin-bottom: 6px;
+        color: var(--muted);
+      }
+
+      input {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(16, 32, 51, 0.14);
+        background: rgba(255, 255, 255, 0.9);
+        font: inherit;
+      }
+
+      .field {
+        margin-bottom: 14px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        border: 0;
+        border-radius: 12px;
+        padding: 12px 16px;
+        font: inherit;
+        cursor: pointer;
+        background: var(--accent);
+        color: white;
+      }
+
+      button.secondary {
+        background: rgba(16, 32, 51, 0.08);
+        color: var(--ink);
+      }
+
+      button.danger {
+        background: var(--danger);
+      }
+
+      pre {
+        margin: 0;
+        padding: 16px;
+        border-radius: 14px;
+        background: #0f172a;
+        color: #d7e2f2;
+        overflow: auto;
+        min-height: 220px;
+      }
+
+      .status {
+        min-height: 24px;
+        margin-top: 12px;
+        color: var(--accent-strong);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <h1>Temporal Demo Console</h1>
+        <p>
+          Start a workflow, inspect live status, send a signal that changes the workflow state,
+          or request cancellation. The Temporal UI is available separately for history and
+          execution visibility.
+        </p>
+        <div class="meta">
+          <div class="pill">Temporal target: {{ temporal_target_host }}</div>
+          <div class="pill">Task queue: {{ task_queue }}</div>
+          <div class="pill">Temporal UI: <a href="http://localhost:8233" target="_blank">localhost:8233</a></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="panel">
+          <h2>Start Workflow</h2>
+          <div class="field">
+            <label for="name">Name</label>
+            <input id="name" value="Temporal User" />
+          </div>
+          <div class="field">
+            <label for="steps">Total steps</label>
+            <input id="steps" type="number" min="1" max="20" value="5" />
+          </div>
+          <div class="field">
+            <label for="delay">Delay per step in seconds</label>
+            <input id="delay" type="number" min="1" max="30" value="2" />
+          </div>
+          <div class="actions">
+            <button id="start-button">Start Workflow</button>
+          </div>
+          <div id="start-status" class="status"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Interact With Workflow</h2>
+          <div class="field">
+            <label for="workflow-id">Workflow ID</label>
+            <input id="workflow-id" placeholder="Paste a workflow id" />
+          </div>
+          <div class="field">
+            <label for="signal-name">New name for signal</label>
+            <input id="signal-name" value="Updated User" />
+          </div>
+          <div class="actions">
+            <button id="inspect-button" class="secondary">Inspect</button>
+            <button id="signal-button" class="secondary">Send Signal</button>
+            <button id="cancel-button" class="danger">Cancel</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Response</h2>
+        <pre id="output">Run a workflow to see execution data here.</pre>
+      </section>
+    </main>
+
+    <script>
+      const output = document.getElementById("output");
+      const startStatus = document.getElementById("start-status");
+      const workflowIdInput = document.getElementById("workflow-id");
+
+      async function callApi(url, options = {}) {
+        const response = await fetch(url, {
+          headers: { "Content-Type": "application/json" },
+          ...options,
+        });
+
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.detail || "Request failed");
+        }
+
+        output.textContent = JSON.stringify(payload, null, 2);
+        return payload;
+      }
+
+      document.getElementById("start-button").addEventListener("click", async () => {
+        startStatus.textContent = "Starting workflow...";
+        try {
+          const payload = await callApi("/api/workflows", {
+            method: "POST",
+            body: JSON.stringify({
+              name: document.getElementById("name").value,
+              total_steps: Number(document.getElementById("steps").value),
+              delay_seconds: Number(document.getElementById("delay").value),
+            }),
+          });
+          workflowIdInput.value = payload.workflow_id;
+          startStatus.textContent = `Started ${payload.workflow_id}`;
+        } catch (error) {
+          startStatus.textContent = error.message;
+        }
+      });
+
+      document.getElementById("inspect-button").addEventListener("click", async () => {
+        await callApi(`/api/workflows/${workflowIdInput.value}`);
+      });
+
+      document.getElementById("signal-button").addEventListener("click", async () => {
+        await callApi(`/api/workflows/${workflowIdInput.value}/signal`, {
+          method: "POST",
+          body: JSON.stringify({ name: document.getElementById("signal-name").value }),
+        });
+      });
+
+      document.getElementById("cancel-button").addEventListener("click", async () => {
+        await callApi(`/api/workflows/${workflowIdInput.value}/cancel`, {
+          method: "POST",
+        });
+      });
+    </script>
+  </body>
+</html>

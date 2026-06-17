@@ -1,0 +1,11 @@
+Temporal demo release installed.
+
+Quick checks:
+  kubectl get pods -n {{ .Release.Namespace }}
+  kubectl get svc -n {{ .Release.Namespace }}
+
+Port-forward for web app:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/web 8081:8080
+
+Port-forward for Temporal UI:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/temporal-ui 8233:8080
