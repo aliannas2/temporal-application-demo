@@ -1,0 +1,21 @@
+namespace: temporal-demo
+
+ingressClassName: nginx
+
+ui:
+  enabled: true
+  name: temporal-ui-ingress
+  host: temporal-ui.minikube.local
+  serviceName: temporal-ui
+  servicePort: 8080
+
+grpc:
+  enabled: true
+  name: temporal-grpc-ingress
+  host: temporal-grpc.minikube.local
+  serviceName: temporal-proxy
+  servicePort: 7233
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: GRPC
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"

@@ -1,0 +1,45 @@
+{{- if .Values.ui.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.ui.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  ingressClassName: {{ .Values.ingressClassName }}
+  rules:
+    - host: {{ .Values.ui.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.ui.serviceName }}
+                port:
+                  number: {{ .Values.ui.servicePort }}
+{{- end }}
+{{- if and .Values.ui.enabled .Values.grpc.enabled }}
+---
+{{- end }}
+{{- if .Values.grpc.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.grpc.name }}
+  namespace: {{ .Values.namespace }}
+  annotations:
+{{ toYaml .Values.grpc.annotations | indent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingressClassName }}
+  rules:
+    - host: {{ .Values.grpc.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.grpc.serviceName }}
+                port:
+                  number: {{ .Values.grpc.servicePort }}
+{{- end }}

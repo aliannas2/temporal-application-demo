@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: temporal-demo-stack
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - list:
+        elements:
+          - appName: temporal-demo
+            namespace: temporal-demo
+            chartPath: helm/temporal-demo
+            helmValues: |
+              auth:
+                existingSecret: temporal-auth
+                secretKey: token
+          - appName: temporal-ingress
+            namespace: temporal-demo
+            chartPath: helm/temporal-ingress
+            helmValues: ""
+  template:
+    metadata:
+      name: '{{ .appName }}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/aliannas2/temporal-application-demo.git
+        targetRevision: main
+        path: '{{ .chartPath }}'
+        helm:
+          values: '{{ .helmValues }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .namespace }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
