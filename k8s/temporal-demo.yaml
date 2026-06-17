@@ -127,6 +127,8 @@ spec:
               value: /etc/temporal/certs/ca.crt
             - name: TEMPORAL_TLS_INTERNODE_SERVER_NAME
               value: temporal
+            - name: TEMPORAL_TLS_INTERNODE_DISABLE_HOST_VERIFICATION
+              value: "true"
             - name: TEMPORAL_TLS_FRONTEND_CERT
               value: /etc/temporal/certs/server.crt
             - name: TEMPORAL_TLS_FRONTEND_KEY
@@ -137,6 +139,8 @@ spec:
               value: /etc/temporal/certs/ca.crt
             - name: TEMPORAL_TLS_FRONTEND_SERVER_NAME
               value: temporal
+            - name: TEMPORAL_TLS_FRONTEND_DISABLE_HOST_VERIFICATION
+              value: "true"
           volumeMounts:
             - name: temporal-tls-certs
               mountPath: /etc/temporal/certs

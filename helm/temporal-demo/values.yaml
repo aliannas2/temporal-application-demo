@@ -6,6 +6,8 @@ tls:
   frontendServerName: temporal
   mtlsEnabled: true
   useClientCert: false
+  internodeDisableHostVerification: true
+  frontendDisableHostVerification: true
   certKeys:
     ca: ca.crt
     serverCert: server.crt

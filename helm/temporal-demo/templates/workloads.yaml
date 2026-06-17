@@ -119,6 +119,8 @@ spec:
               value: /etc/temporal/certs/{{ .Values.tls.certKeys.ca }}
             - name: TEMPORAL_TLS_INTERNODE_SERVER_NAME
               value: {{ .Values.tls.frontendServerName | quote }}
+            - name: TEMPORAL_TLS_INTERNODE_DISABLE_HOST_VERIFICATION
+              value: {{ .Values.tls.internodeDisableHostVerification | quote }}
             - name: TEMPORAL_TLS_FRONTEND_CERT
               value: /etc/temporal/certs/{{ .Values.tls.certKeys.serverCert }}
             - name: TEMPORAL_TLS_FRONTEND_KEY
@@ -129,6 +131,8 @@ spec:
               value: /etc/temporal/certs/{{ .Values.tls.certKeys.ca }}
             - name: TEMPORAL_TLS_FRONTEND_SERVER_NAME
               value: {{ .Values.tls.frontendServerName | quote }}
+            - name: TEMPORAL_TLS_FRONTEND_DISABLE_HOST_VERIFICATION
+              value: {{ .Values.tls.frontendDisableHostVerification | quote }}
           volumeMounts:
             - name: temporal-tls-certs
               mountPath: /etc/temporal/certs
